@@ -10,13 +10,20 @@
 #include <netdb.h>
 #include<iostream>
 #include <fstream>
+#include <ctime>
+#include <time.h>
 
 #include "packet.h"
 #include "packet.cpp"
 
+
+
 using namespace std;
 
 int main (int argc, char ** argv){
+	
+	struct timeval timeout;
+	timeout.tv_sec = 2;
 	
     //creates a UDP socket
 	int hostsocket,emulatorport,clientport;
@@ -51,11 +58,15 @@ int main (int argc, char ** argv){
 	char buffer[37];
 	char fbuffer[30];
 	char data[37]; 
-	int type=1;
+	int type;
 	int seqnum=0;
 	int ackseq=0;
-	char seqnuma[2];
-	char ackseqn[2];
+	char seqnuma[10];
+	char ackseqn[10];
+	int cps=CLOCKS_PER_SEC;
+	int window=0;
+	
+	
 	
 	ifstream file;
 	file.open(argv[4]);
@@ -67,35 +78,69 @@ int main (int argc, char ** argv){
 	seqnumfile.open("seqnum.log.txt");	
 
   
-    while (file.read(fbuffer,30)) {			
+    while (!file.eof()) {		
 		
-		//Makes and sends data packet to server
-		packet datapacket(type,seqnum,sizeof(fbuffer),fbuffer);
-		datapacket.serialize((char*) buffer);
-		sendto(hostsocket,buffer,sizeof(buffer),0,(struct sockaddr *)&emulator, sizeof(emulator));
-		
-
+		setsockopt(hostsocket,SOL_SOCKET, SO_RCVTIMEO,&timeout,sizeof(timeout));
 	
-		//Recieves ackpacket from server
-		packet ackpacket(0,0,0,0);
-		recvfrom(hostsocket,data,sizeof(data),0,(struct sockaddr *)&emulator, &emulatorlen);		
-		ackpacket.deserialize((char*)data);
-		
-		ackseq=ackpacket.getSeqNum();
-		sprintf(ackseqn,"%d",ackseq);	
-		ackfile.write(ackseqn,sizeof(seqnuma));
-		
+		memset ((char*)&buffer,0,sizeof(buffer));
+		memset ((char*)&fbuffer,0,sizeof(fbuffer));
+		memset ((char*)&data,0,sizeof(data));
+		if (window==7)
+		{
+			//Recieves ackpacket from server
+			packet ackpacket(0,0,0,0);
+			recvfrom(hostsocket,data,sizeof(data),0,(struct sockaddr *)&emulator, &emulatorlen);		
+			ackpacket.deserialize((char*)data);
+			ackpacket.printContents();
+			ackfile<<ackpacket.getSeqNum();
+			ackfile<<"\n";
+			window--;
+		}
+		else{
+			file.read(fbuffer,30);
+			type=1;
+			//Makes and sends data packet to server
+			packet datapacket(type,seqnum,sizeof(fbuffer),fbuffer);
+			datapacket.serialize((char*) buffer);
+			sendto(hostsocket,buffer,sizeof(buffer),0,(struct sockaddr *)&emulator, sizeof(emulator));
+			datapacket.printContents();
+			seqnumfile<<datapacket.getSeqNum();
+			seqnumfile<<"\n";
+			
+			seqnum++;
+			window++;
+		}
 		
 		memset ((char*)&buffer,0,sizeof(buffer));
 		memset ((char*)&fbuffer,0,sizeof(fbuffer));
 		memset ((char*)&data,0,sizeof(data));
-		seqnum=seqnum+1;
-		type=1;
-	
-	}
 
+	}
 	
+	memset ((char*)&buffer,0,sizeof(buffer));
+	memset ((char*)&fbuffer,0,sizeof(fbuffer));
+	memset ((char*)&data,0,sizeof(data));
 	
+	type=3;
+	
+	//Makes and sends data EOF packet to server
+	packet endpacket(type,seqnum,0,0);
+	endpacket.serialize((char*) buffer);
+	sendto(hostsocket,buffer,sizeof(buffer),0,(struct sockaddr *)&emulator, sizeof(emulator));
+	endpacket.printContents();
+	seqnumfile<<endpacket.getSeqNum();
+	seqnumfile<<"\n";
+	
+	//Recieves EOF ack from server
+	packet endackpacket(0,0,0,0);
+	recvfrom(hostsocket,data,sizeof(data),0,(struct sockaddr *)&emulator, &emulatorlen);		
+	endackpacket.deserialize((char*)data);
+	endackpacket.printContents();
+	ackfile<<endackpacket.getSeqNum();
+	ackfile<<"\n";
+
 	file.close();
+	ackfile.close();
+	seqnumfile.close();
 	close (hostsocket);
 }

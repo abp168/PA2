@@ -54,41 +54,47 @@ int main (int argc, char ** argv){
 	arrivalfile.open("arrival.log.txt");	
 		
 	char data[37]; 
-	char ack[5]; 
+	char ack[10]; 
+	char data1[30]; 
 	
-
 	int type=1;
 	int seqnum=0;
 	int acktype=0;
-	
+	packet datapacket(type,seqnum,sizeof(data1),data1);		
 
 	while (type!=3){	
-	
+		
 		memset ((char*)&data,0,sizeof(data));
+		memset ((char*)&data1,0,sizeof(data1));
 		memset ((char*)&ack,0,sizeof(ack));
 		
 		// Recieve packet from client and deserialize
 		recvfrom(hostsocket,data,sizeof(data),0,(struct sockaddr *)&emulator, &emulatorlen);
-		packet datapacket(type,seqnum,sizeof(data),data);
+		//packet datapacket(type,seqnum,30,data);
+
 		datapacket.deserialize((char*)data);
-		char*info=datapacket.getData();
-		outfile.write(info,datapacket.getLength());
 		seqnum = datapacket.getSeqNum();
-		
-		char seqnuma[2];
-		sprintf(seqnuma,"%d",seqnum);	
-		arrivalfile.write(seqnuma,sizeof(seqnuma));
-		
-		// Gets type for while loop
-		type=datapacket.getType();	
-		
 		datapacket.printContents();
+		
+		type=datapacket.getType();
+		if (type==3){
+			packet ackpacket(acktype,seqnum,0,0);
+			ackpacket.serialize((char*)ack);
+			sendto(hostsocket,ack,sizeof(ack),0,(struct sockaddr *)&emulator, sizeof(emulator));
+			break;
+		}	
+		outfile<<datapacket.getData();
+		arrivalfile<<datapacket.getSeqNum();
+		arrivalfile<<"\n";
 		
 		//makes ack packet to send to client
 		packet ackpacket(acktype,seqnum,0,0);
 		ackpacket.serialize((char*)ack);
 		sendto(hostsocket,ack,sizeof(ack),0,(struct sockaddr *)&emulator, sizeof(emulator));
-	//	ackpacket.printContents();
+		ackpacket.printContents();
+		
+		memset ((char*)&data,0,sizeof(data));
+		memset ((char*)&ack,0,sizeof(ack));
 
 	 }
 	acktype=2;	 
@@ -96,9 +102,13 @@ int main (int argc, char ** argv){
 	packet endackpacket(acktype,seqnum,0,0);
 	endackpacket.serialize((char*)ack);
 	sendto(hostsocket,ack,sizeof(ack),0,(struct sockaddr *)&emulator, sizeof(emulator));
+	arrivalfile<<endackpacket.getSeqNum();
+	arrivalfile<<"\n";
 	endackpacket.printContents();
 	
+	
 	outfile.close();
+	arrivalfile.close();
 	close (hostsocket);
 }
 	
