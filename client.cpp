@@ -73,14 +73,14 @@ int main (int argc, char ** argv){
 	seqnumfile.open("seqnum.log.txt");	
 
   
-    while (!file.eof() && ackseq==seqnum) {		
+    while (!file.eof()) {		
 		
 		setsockopt(hostsocket,SOL_SOCKET, SO_RCVTIMEO,&timeout,sizeof(timeout));
 	
 		memset ((char*)&buffer,0,sizeof(buffer));
 		memset ((char*)&fbuffer,0,sizeof(fbuffer));
 		memset ((char*)&data,0,sizeof(data));
-		if (window==7 || !file.eof())
+		if (window==7)
 		{
 			//Recieves ackpacket from server
 			packet ackpacket(0,0,0,0);
