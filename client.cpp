@@ -61,12 +61,7 @@ int main (int argc, char ** argv){
 	int type;
 	int seqnum=0;
 	int ackseq=0;
-	char seqnuma[10];
-	char ackseqn[10];
-	int cps=CLOCKS_PER_SEC;
 	int window=0;
-	
-	
 	
 	ifstream file;
 	file.open(argv[4]);
@@ -78,27 +73,31 @@ int main (int argc, char ** argv){
 	seqnumfile.open("seqnum.log.txt");	
 
   
-    while (!file.eof()) {		
+    while (!file.eof() && ackseq==seqnum) {		
 		
 		setsockopt(hostsocket,SOL_SOCKET, SO_RCVTIMEO,&timeout,sizeof(timeout));
 	
 		memset ((char*)&buffer,0,sizeof(buffer));
 		memset ((char*)&fbuffer,0,sizeof(fbuffer));
 		memset ((char*)&data,0,sizeof(data));
-		if (window==7)
+		if (window==7 || !file.eof())
 		{
 			//Recieves ackpacket from server
 			packet ackpacket(0,0,0,0);
 			recvfrom(hostsocket,data,sizeof(data),0,(struct sockaddr *)&emulator, &emulatorlen);		
 			ackpacket.deserialize((char*)data);
 			ackpacket.printContents();
+			ackseq=ackpacket.getSeqNum();
 			ackfile<<ackpacket.getSeqNum();
 			ackfile<<"\n";
 			window--;
+			
 		}
 		else{
+		
 			file.read(fbuffer,30);
 			type=1;
+		
 			//Makes and sends data packet to server
 			packet datapacket(type,seqnum,sizeof(fbuffer),fbuffer);
 			datapacket.serialize((char*) buffer);
