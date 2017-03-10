@@ -60,8 +60,9 @@ int main (int argc, char ** argv){
 	char data[37]; 
 	int type;
 	int seqnum=0;
-	int ackseq=0;
+	int ackseq=-1;
 	int window=0;
+	int expectedack=-1;
 	
 	ifstream file;
 	file.open(argv[4]);
@@ -71,17 +72,17 @@ int main (int argc, char ** argv){
 	
 	ofstream seqnumfile;
 	seqnumfile.open("seqnum.log.txt");	
-
-  
-    while (!file.eof()) {		
-		
-		setsockopt(hostsocket,SOL_SOCKET, SO_RCVTIMEO,&timeout,sizeof(timeout));
 	
+		
+	while (true) {	
+	
+
 		memset ((char*)&buffer,0,sizeof(buffer));
 		memset ((char*)&fbuffer,0,sizeof(fbuffer));
 		memset ((char*)&data,0,sizeof(data));
-		if (window==7)
+		if (window==7 || file.eof())
 		{
+			
 			//Recieves ackpacket from server
 			packet ackpacket(0,0,0,0);
 			recvfrom(hostsocket,data,sizeof(data),0,(struct sockaddr *)&emulator, &emulatorlen);		
@@ -91,9 +92,29 @@ int main (int argc, char ** argv){
 			ackfile<<ackpacket.getSeqNum();
 			ackfile<<"\n";
 			window--;
+
+			if (window==0){
 			
+				//Makes and sends data EOF packet to server
+				type=3;	
+				packet endpacket(type,seqnum,0,0);
+				endpacket.serialize((char*) buffer);
+				sendto(hostsocket,buffer,sizeof(buffer),0,(struct sockaddr *)&emulator, sizeof(emulator));
+				endpacket.printContents();
+				seqnumfile<<endpacket.getSeqNum();
+				seqnumfile<<"\n";
+	
+				//Recieves EOF ack from server
+				packet endackpacket(0,0,0,0);
+				recvfrom(hostsocket,data,sizeof(data),0,(struct sockaddr *)&emulator, &emulatorlen);		
+				endackpacket.deserialize((char*)data);
+				endackpacket.printContents();
+				ackfile<<endackpacket.getSeqNum();
+				ackfile<<"\n";
+				break;
+			}
 		}
-		else{
+		if (!file.eof()){
 		
 			file.read(fbuffer,30);
 			type=1;
@@ -108,35 +129,11 @@ int main (int argc, char ** argv){
 			
 			seqnum++;
 			window++;
-		}
-		
-		memset ((char*)&buffer,0,sizeof(buffer));
-		memset ((char*)&fbuffer,0,sizeof(fbuffer));
-		memset ((char*)&data,0,sizeof(data));
+		} 
+
 
 	}
 	
-	memset ((char*)&buffer,0,sizeof(buffer));
-	memset ((char*)&fbuffer,0,sizeof(fbuffer));
-	memset ((char*)&data,0,sizeof(data));
-	
-	type=3;
-	
-	//Makes and sends data EOF packet to server
-	packet endpacket(type,seqnum,0,0);
-	endpacket.serialize((char*) buffer);
-	sendto(hostsocket,buffer,sizeof(buffer),0,(struct sockaddr *)&emulator, sizeof(emulator));
-	endpacket.printContents();
-	seqnumfile<<endpacket.getSeqNum();
-	seqnumfile<<"\n";
-	
-	//Recieves EOF ack from server
-	packet endackpacket(0,0,0,0);
-	recvfrom(hostsocket,data,sizeof(data),0,(struct sockaddr *)&emulator, &emulatorlen);		
-	endackpacket.deserialize((char*)data);
-	endackpacket.printContents();
-	ackfile<<endackpacket.getSeqNum();
-	ackfile<<"\n";
 
 	file.close();
 	ackfile.close();
