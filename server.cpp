@@ -61,6 +61,7 @@ int main (int argc, char ** argv){
 	int seqnum=0;
 	int acktype=0;
 	int expectedseq=0;
+	
 	packet datapacket(type,seqnum,sizeof(data1),data1);		
 
 	while (type!=3){	
@@ -71,38 +72,46 @@ int main (int argc, char ** argv){
 		
 		// Recieve packet from client and deserialize
 		recvfrom(hostsocket,data,sizeof(data),0,(struct sockaddr *)&emulator, &emulatorlen);		
-		packet datapacket(type,seqnum,30,data);
 		datapacket.deserialize((char*)data);
 		seqnum = datapacket.getSeqNum();
+		arrivalfile<<seqnum;
+		arrivalfile<<"\n";
 		datapacket.printContents();
+		
+		if (expectedseq!=seqnum){
+			packet ackpacket(acktype,expectedseq,0,0);
+			ackpacket.serialize((char*)ack);
+			sendto(hostsocket,ack,sizeof(ack),0,(struct sockaddr *)&emulator, sizeof(emulator));
+			ackpacket.printContents();			
+		}
+		else{
+			type=datapacket.getType();
+			if (type==3){
 
-			
-		type=datapacket.getType();
-		if (type==3){
-
-			acktype=2;
+				acktype=2;
+				packet ackpacket(acktype,seqnum,0,0);
+				ackpacket.serialize((char*)ack);
+				sendto(hostsocket,ack,sizeof(ack),0,(struct sockaddr *)&emulator, sizeof(emulator));
+	
+				arrivalfile<<"\n";
+				ackpacket.printContents();
+				break;		
+			}	
+	
+			outfile<<datapacket.getData();
+		
+			//makes ack packet to send to client
 			packet ackpacket(acktype,seqnum,0,0);
 			ackpacket.serialize((char*)ack);
 			sendto(hostsocket,ack,sizeof(ack),0,(struct sockaddr *)&emulator, sizeof(emulator));
-			arrivalfile<<ackpacket.getSeqNum();
-			arrivalfile<<"\n";
 			ackpacket.printContents();
-			break;
-		}	
-		outfile<<datapacket.getData();
-		arrivalfile<<datapacket.getSeqNum();
-		arrivalfile<<"\n";
-	
-		//makes ack packet to send to client
-		packet ackpacket(acktype,seqnum,0,0);
-		ackpacket.serialize((char*)ack);
-		sendto(hostsocket,ack,sizeof(ack),0,(struct sockaddr *)&emulator, sizeof(emulator));
-		ackpacket.printContents();
-	
-		memset ((char*)&data,0,sizeof(data));
-		memset ((char*)&ack,0,sizeof(ack));
-
-	 }
+			
+			expectedseq++;
+			if (expectedseq==8){
+				expectedseq=0;
+			}
+		}
+	}
 
 	
 	outfile.close();
