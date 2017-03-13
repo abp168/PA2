@@ -84,7 +84,7 @@ int main (int argc, char ** argv){
 		memset ((char*)&fbuffer,0,sizeof(fbuffer));
 		memset ((char*)&data,0,sizeof(data));
 		
-		if (window==8 || file.eof())
+		if (window==7 || file.eof())
 		{		
 			//Recieves ackpacket from server
 			packet ackpacket(0,0,0,0);
@@ -101,7 +101,7 @@ int main (int argc, char ** argv){
 //	
 				
 			if (expectedack!=ackseq || timeout>=2){
-				location= (expectedack-8) * 30;
+				location= (expectedack-7) * 30;
 				file.seekg(location,ios::cur);
 				seqnum=expectedack;
 				window=0;	
