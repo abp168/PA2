@@ -10,6 +10,7 @@
 #include <netdb.h>
 #include<iostream>
 #include <fstream>
+#include <errno.h>
 
 #include "packet.h"
 #include "packet.cpp"
@@ -20,7 +21,7 @@ int main (int argc, char ** argv){
 	//creates UDP socket	
 	int hostsocket,emulatorport,serverport;
 	hostsocket=socket(AF_INET, SOCK_DGRAM,0);
-	
+
 	struct sockaddr_in server;
 	memset((char *) &server, 0, sizeof (server));
 	server.sin_family= AF_INET;
@@ -62,22 +63,29 @@ int main (int argc, char ** argv){
 	int acktype=0;
 	int expectedseq=0;
 	
-	packet datapacket(type,seqnum,sizeof(data1),data1);		
+	packet datapacket(type,seqnum,sizeof(data1),data1);
 
-	while (type!=3){	
-		
+
+       	while (type!=3){
+
 		memset ((char*)&data,0,sizeof(data));
 		memset ((char*)&data1,0,sizeof(data1));
 		memset ((char*)&ack,0,sizeof(ack));
+
 		
 		// Recieve packet from client and deserialize
-		recvfrom(hostsocket,data,sizeof(data),0,(struct sockaddr *)&emulator, &emulatorlen);		
+		   
+			if( recvfrom(hostsocket,data,sizeof(data),0,(struct sockaddr *)&emulator, &emulatorlen) == -1)
+		  {
+		    printf("Error in receiving\n");
+		  }
+		  
 		datapacket.deserialize((char*)data);
 		seqnum = datapacket.getSeqNum();
 		arrivalfile<<seqnum;
 		arrivalfile<<"\n";
 		datapacket.printContents();
-		
+		  
 		if (expectedseq!=seqnum){
 			packet ackpacket(acktype,expectedseq,0,0);
 			ackpacket.serialize((char*)ack);
@@ -103,7 +111,10 @@ int main (int argc, char ** argv){
 			//makes ack packet to send to client
 			packet ackpacket(acktype,seqnum,0,0);
 			ackpacket.serialize((char*)ack);
-			sendto(hostsocket,ack,sizeof(ack),0,(struct sockaddr *)&emulator, sizeof(emulator));
+			if(sendto(hostsocket,ack,sizeof(ack),0,(struct sockaddr *)&emulator, sizeof(emulator)) == -1)
+			  {
+			    printf("error sending. errno: %d\n",errno);
+			  }
 			ackpacket.printContents();
 			
 			expectedseq++;
