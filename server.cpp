@@ -19,24 +19,24 @@ using namespace std;
 
 int main (int argc, char ** argv){
 	//creates UDP socket	
-	int hostsocket,emulatorport,serverport;
-	hostsocket=socket(AF_INET, SOCK_DGRAM,0);
+  int emulator_to_server,server_to_emulator,emulatorport,serverport;
+	emulator_to_server=socket(AF_INET, SOCK_DGRAM,0);
 
 	struct sockaddr_in server;
 	memset((char *) &server, 0, sizeof (server));
 	server.sin_family= AF_INET;
-	serverport=atoi(argv[2]);
+	serverport=atoi(argv[2]); //UDP port used by server to receive data from emulator
 	server.sin_port=htons(serverport);
 	server.sin_addr.s_addr=htonl(INADDR_ANY);
-	
-	//binds server to new socket
-	bind(hostsocket,(struct sockaddr *)&server,sizeof(server));
-	
+			//binds server to new socket
+	bind(emulator_to_server,(struct sockaddr *)&server,sizeof(server));
+
 	//get address for emulator
 	struct hostent *em;
 	em= gethostbyname(argv[1]);
 	
 	//get port for emulator
+	server_to_emulator = socket(AF_INET, SOCK_DGRAM,0);
 	struct sockaddr_in emulator;
 	memset((char *) &emulator, 0, sizeof (emulator));
 	emulator.sin_family= AF_INET;
@@ -46,7 +46,10 @@ int main (int argc, char ** argv){
 		 (char*)&emulator.sin_addr.s_addr,
 		 em->h_length);
 	
+	bind(server_to_emulator,(struct sockaddr *)&emulator,sizeof(emulator));
+	
 	socklen_t emulatorlen=sizeof(emulator);
+	socklen_t serverlen = sizeof(server);
 	
 	ofstream outfile;
 	outfile.open("output.txt");	
@@ -75,7 +78,7 @@ int main (int argc, char ** argv){
 		
 		// Recieve packet from client and deserialize
 		   
-			if( recvfrom(hostsocket,data,sizeof(data),0,(struct sockaddr *)&emulator, &emulatorlen) == -1)
+			if( recvfrom(emulator_to_server,data,sizeof(data),0,(struct sockaddr *)&server, &serverlen) == -1)
 		  {
 		    printf("Error in receiving\n");
 		  }
@@ -89,7 +92,7 @@ int main (int argc, char ** argv){
 		if (expectedseq!=seqnum){
 			packet ackpacket(acktype,expectedseq,0,0);
 			ackpacket.serialize((char*)ack);
-			sendto(hostsocket,ack,sizeof(ack),0,(struct sockaddr *)&emulator, sizeof(emulator));
+			sendto(server_to_emulator,ack,sizeof(ack),0,(struct sockaddr *)&emulator, sizeof(emulator));
 			ackpacket.printContents();			
 		}
 		else{
@@ -99,7 +102,7 @@ int main (int argc, char ** argv){
 				acktype=2;
 				packet ackpacket(acktype,seqnum,0,0);
 				ackpacket.serialize((char*)ack);
-				sendto(hostsocket,ack,sizeof(ack),0,(struct sockaddr *)&emulator, sizeof(emulator));
+				sendto(server_to_emulator,ack,sizeof(ack),0,(struct sockaddr *)&emulator, sizeof(emulator));
 	
 				arrivalfile<<"\n";
 				ackpacket.printContents();
@@ -111,7 +114,7 @@ int main (int argc, char ** argv){
 			//makes ack packet to send to client
 			packet ackpacket(acktype,seqnum,0,0);
 			ackpacket.serialize((char*)ack);
-			if(sendto(hostsocket,ack,sizeof(ack),0,(struct sockaddr *)&emulator, sizeof(emulator)) == -1)
+			if(sendto(server_to_emulator,ack,sizeof(ack),0,(struct sockaddr *)&emulator, sizeof(emulator)) == -1)
 			  {
 			    printf("error sending. errno: %d\n",errno);
 			  }
@@ -127,6 +130,7 @@ int main (int argc, char ** argv){
 	
 	outfile.close();
 	arrivalfile.close();
-	close (hostsocket);
+	close(emulator_to_server);
+	close(server_to_emulator);
 }
 	

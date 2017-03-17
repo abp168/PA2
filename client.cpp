@@ -12,7 +12,10 @@
 #include <fstream>
 #include <ctime>
 #include <time.h>
-#include <sys/poll.h>
+#include <sys/select.h>
+#include <sys/unistd.h>
+#include <sys/fcntl.h>
+
 
 #include "packet.h"
 #include "packet.cpp"
@@ -24,34 +27,43 @@ using namespace std;
 int main (int argc, char ** argv){
 		
     //creates a UDP socket
-	int hostsocket,emulatorport,clientport;
-	hostsocket=socket(AF_INET, SOCK_DGRAM,0);			
-	
+  int client_to_emulator,emulator_to_client,emulatorport,clientport;
+	client_to_emulator=socket(AF_INET, SOCK_DGRAM,0);			
+       	fcntl(client_to_emulator,F_SETFL,O_NONBLOCK); // set socket to non-blocking 
 	struct sockaddr_in client;
 	memset((char *) &client, 0, sizeof (client));
 	client.sin_family= AF_INET;
-	clientport=atoi(argv[3]);
+	clientport=atoi(argv[3]);//UDP port number used by the client to receive ACKS from emulator
 	client.sin_port=htons(clientport);
 	client.sin_addr.s_addr=htonl(INADDR_ANY);
 	
-	//binds client to new socket
-	bind(hostsocket,(struct sockaddr *)&client,sizeof(client));
-	
+		//binds  to new socket
+	bind(client_to_emulator,(struct sockaddr *)&client,sizeof(client));
 	//get address for emulator
 	struct hostent *em;
 	em= gethostbyname(argv[1]);
-	
+	if(em == NULL)
+	  {
+	    printf("Error gethostbyname(): %d\n",h_errno);
+	  }
 	//get port for emulator
+	emulator_to_client = socket(AF_INET,SOCK_DGRAM,0);
+	fcntl(emulator_to_client,F_SETFL,O_NONBLOCK); // set socket to non-blocking 
 	struct sockaddr_in emulator;
 	memset((char *) &emulator, 0, sizeof (emulator));
 	emulator.sin_family= AF_INET;
-	emulatorport=atoi(argv[2]);
+	emulatorport=atoi(argv[2]);//UDP port used by the emulator to recevie data from client
 	emulator.sin_port= htons(emulatorport);
 	bcopy((char*)em->h_addr,
 		 (char*)&emulator.sin_addr.s_addr,
 		 em->h_length);
 	
+
+	bind(emulator_to_client,(struct sockaddr *)&emulator,sizeof(emulator));
+
+	
 	socklen_t emulatorlen=sizeof(emulator);
+	socklen_t clientlen = sizeof(client);
 	
 	char buffer[37];
 	char fbuffer[30];
@@ -66,6 +78,7 @@ int main (int argc, char ** argv){
 	int location=0;
 	int timeout;
 	int interrupt;
+	fd_set readfds;
 	
 	ifstream file;
 	file.open(argv[4]);
@@ -74,19 +87,24 @@ int main (int argc, char ** argv){
 	ackfile.open("ack.log.txt");	
 	
 	ofstream seqnumfile;
-	seqnumfile.open("seqnum.log.txt");	
-	struct pollfd ufds[2]; // create poll struct to interrupt recvfrom()
-	ufds[0].fd = hostsocket;
-	ufds[0].events = POLLIN;
+	seqnumfile.open("seqnum.log.txt");
+	struct timeval tv;
+	FD_ZERO(&readfds);
+	FD_SET(client_to_emulator, &readfds);
+	tv.tv_sec = 5;
+	tv.tv_usec = 0;
+	
 	
 	
 	time_t start,stop;
+	#define SOCKET_ERROR -1
+	#define TIMEOUT 0
 	
 		
 
 	while (true) {	
-	
-
+	;
+	   
 		memset ((char*)&buffer,0,sizeof(buffer));
 		memset ((char*)&fbuffer,0,sizeof(fbuffer));
 		memset ((char*)&data,0,sizeof(data));
@@ -104,7 +122,7 @@ int main (int argc, char ** argv){
 			//Makes and sends data packet to server
 			packet datapacket(type,seqnum,sizeof(fbuffer),fbuffer);
 			datapacket.serialize((char*) buffer);
-			sendto(hostsocket,buffer,sizeof(buffer),0,(struct sockaddr *)&emulator, sizeof(emulator));
+			sendto(client_to_emulator,buffer,sizeof(buffer),0,(struct sockaddr *)&emulator, sizeof(emulator));
 			
 			datapacket.printContents();
 			seqnumfile<<seqnum;
@@ -112,28 +130,56 @@ int main (int argc, char ** argv){
 						
 			seqnum++;
 			window++;
-		  }
+		  
 	   
-		if (window==7)
-		  {
-		     interrupt= poll(ufds,1,2000);
-		    //Recieves ackpacket from server
-		    packet ackpacket(0,0,0,0);
+			if (window==7)
+			  {
+			    //interrupt= poll(ufds,1,2000);
+			    //Recieves ackpacket from server
+		    
 			
 			    
-		    if(interrupt == -1)
-		      {
-			printf("Error in polling.\n");
-		      }
-		    if (interrupt == 0)
-		      {
-			printf("Timeout occured!\n");
-		      }
-		    else
-		      {
-			if(ufds[0].revents & POLLIN)
+			    if(select(client_to_emulator+1,&readfds,0,0,&tv) == SOCKET_ERROR)
+			       {
+			       printf("Error in polling.\n");
+			       }
+			    if (select(client_to_emulator+1,&readfds,0,0,&tv) == TIMEOUT)
+			       {
+			       printf("Timeout occured!\n");
+			       }
+			    else
+			       {
+				 if(FD_ISSET(client_to_emulator,&readfds))
+				   {
+				     printf("Entered receive condition\n");
+				     if( recvfrom(emulator_to_client,data,sizeof(data),0,(struct sockaddr *)&client, &clientlen) == -1)
+				       {
+					 printf("Error in receving\n");
+				       }
+				     packet ackpacket(0,0,0,0);
+				     ackpacket.deserialize((char*)data);
+				     ackpacket.printContents();
+				     ackseq=ackpacket.getSeqNum();
+				     ackfile<<ackseq;
+				     ackfile<<"\n";
+				     if(send_base == ackseq)
+				       {
+					 send_base++;
+					 window =0;
+				       }
+				   }
+			
+			
+			       }
+			   
+			  }
+		  }
+			/*if(ufds[0].revents & POLLPRI == POLLPRI)
 			{
-			    recvfrom(hostsocket,data,sizeof(data),0,(struct sockaddr *)&emulator, &emulatorlen);
+			  if( recvfrom(client_to_emulator,data,sizeof(data),0,(struct sockaddr *)&emulator, &emulatorlen) == -1)
+			    {
+			      printf("Error in receving\n");
+			    }
 			    ackpacket.deserialize((char*)data);
 			    ackpacket.printContents();
 			    ackseq=ackpacket.getSeqNum();
@@ -144,9 +190,9 @@ int main (int argc, char ** argv){
 				send_base++;
 				window =0;
 			      }
-			}
-		      }
+			      }
 		  }
+	
 			  
 			    /* if (expectedack!=ackseq) //|| timeout>=2)
 			      {
@@ -178,35 +224,45 @@ int main (int argc, char ** argv){
 		    type=3;	
 		    packet endpacket(type,seqnum,0,0);
 		    endpacket.serialize((char*) buffer);
-		    sendto(hostsocket,buffer,sizeof(buffer),0,(struct sockaddr *)&emulator, sizeof(emulator));
+		    sendto(client_to_emulator,buffer,sizeof(buffer),0,(struct sockaddr *)&emulator, sizeof(emulator));
 		    endpacket.printContents();
 		    seqnumfile<<seqnum;
 		    seqnumfile<<"\n";
-	
-		    //Recieves EOF ack from server
-		    packet endackpacket(0,0,0,0);
-		    interrupt= poll(ufds,1,2000);
-		     if(interrupt == -1)
+     
+		     
+		    if(select(client_to_emulator+1,&readfds,0,0,&tv) == SOCKET_ERROR)
 		      {
 			printf("Error in polling.\n");
 		      }
-		    if (interrupt == 0)
+		    if (select(client_to_emulator+1,&readfds,0,0,&tv) == TIMEOUT)
 		      {
 			printf("Timeout occured!\n");
 		      }
 		    else
 		      {
-			if(ufds[0].revents & POLLIN)
-			{
-			    recvfrom(hostsocket,data,sizeof(data),0,(struct sockaddr *)&emulator, &emulatorlen);		
-			    endackpacket.deserialize((char*)data);
-			    endackpacket.printContents();
-			    ackseq=endackpacket.getSeqNum();
-			    ackfile<<ackseq;
-			    ackfile<<"\n";
-			    break;
-			}
+			if(FD_ISSET(client_to_emulator,&readfds))
+			  {
+			    
+			    printf("Entered receive condition\n");
+			    if( recvfrom(emulator_to_client,data,sizeof(data),0,(struct sockaddr *)&client, &clientlen) == -1)
+			      {
+				printf("Error in receving\n");
+			      }
+			    
+			  }
+			
+			
 		      }
+		    //Recieves EOF ack from server
+		    packet endackpacket(0,0,0,0); 		
+		    endackpacket.deserialize((char*)data);
+		    endackpacket.printContents();
+		    ackseq=endackpacket.getSeqNum();
+		    ackfile<<ackseq;
+		    ackfile<<"\n";
+		    break;
+			
+
 		  }
 	}			
 		
@@ -225,5 +281,6 @@ int main (int argc, char ** argv){
 	file.close();
 	ackfile.close();
 	seqnumfile.close();
-	close (hostsocket);
+	close (client_to_emulator);
+	close(emulator_to_client);
 }
