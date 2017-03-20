@@ -15,6 +15,7 @@
 #include <sys/select.h>
 #include <sys/unistd.h>
 #include <sys/fcntl.h>
+#include <errno.h>
 
 
 #include "packet.h"
@@ -92,15 +93,20 @@ int main (int argc, char ** argv){
 	
 	ofstream seqnumfile;
 	seqnumfile.open("seqnum.log.txt");
-	struct timeval tv;
+
 	FD_ZERO(&readfds);
 	FD_SET(client_to_emulator, &readfds);
-	tv.tv_sec = 5;
-	tv.tv_usec = 0;
+
 	
 	
+	struct timeval tv;
+	tv.tv_sec=2;
+	tv.tv_usec=0;
+	if(setsockopt(emulator_to_client,SOL_SOCKET,SO_RCVTIMEO,(char*)&tv,sizeof(tv)))
+	{
+		printf("Setsockopt error\n Error Number: %d\n",errno);
+	}
 	
-	time_t start,stop;
 	#define SOCKET_ERROR -1
 	#define TIMEOUT 0
 	
@@ -131,7 +137,8 @@ int main (int argc, char ** argv){
 			
 		     
 		    //Recieves EOF ack from server
-		 	if(recvfrom(emulator_to_client, data,sizeof(data),0,(struct sockaddr *)&client, &clientlen)==-1)
+			
+		 	if(recvfrom(emulator_to_client, data,sizeof(data),0,(struct sockaddr *)&client, &clientlen)<0)
 			{
 				printf("Error in recv\n");
 			}
@@ -142,7 +149,7 @@ int main (int argc, char ** argv){
 		    ackfile<<ackseq;
 		    ackfile<<"\n";
 			
-			printf("EOT pakcet recived. Exiting-----------------------\n");
+			printf("EOT packet recived. Exiting-----------------------\n");
 		    break;
 			
 
@@ -177,7 +184,7 @@ int main (int argc, char ** argv){
 			
 			printf("SB: %d\n",send_base);
 			printf("NS: %d\n",next_seq);
-			printf("Number of outstanding pakcets: %d\n",window);
+			printf("Number of outstanding packets: %d\n",window);
 			printf("-------------------------------------------------------------\n");
 
 		  }
@@ -203,7 +210,7 @@ int main (int argc, char ** argv){
 		 				send_base=0;
 		 			  }	
 					 
-					 
+
 				    
 		//			 if(send_base == ackseq)
 		//		       {
@@ -213,7 +220,7 @@ int main (int argc, char ** argv){
 					 
 		 			printf("SB: %d\n",send_base);
 		 			printf("NS: %d\n",next_seq);
-		 			printf("Number of outstanding pakcets: %d\n",window);
+		 			printf("Number of outstanding packets: %d\n",window);
 					printf("-------------------------------------------------------------\n");
 					
 
