@@ -77,10 +77,11 @@ int main (int argc, char ** argv){
 	int ackseq=-1;
 	int window=0;
 	int send_base = 0;
-	int expectedack=0;
 	int location=0;
 	int timeout;
 	int interrupt;
+	int next_seq=0;
+	
 	fd_set readfds;
 	
 	ifstream file;
@@ -103,7 +104,8 @@ int main (int argc, char ** argv){
 	#define SOCKET_ERROR -1
 	#define TIMEOUT 0
 	
-		
+	printf("Host name: %s\n IP address: %s\n",argv[1],em);
+	printf("-------------------------------------------------------------\n");
 
 	while (true)
 	 {	
@@ -113,7 +115,38 @@ int main (int argc, char ** argv){
 		memset ((char*)&fbuffer,0,sizeof(fbuffer));
 		memset ((char*)&data,0,sizeof(data));
 
-		
+		if ( file.eof() && window==0)
+		  {
+			
+			
+		    //Makes and sends data EOF packet to server
+		    type=3;	
+			printf("Sending EOT packet to server\n");
+		    packet endpacket(type,seqnum,0,0);
+		    endpacket.serialize((char*) buffer);
+		    sendto(client_to_emulator,buffer,sizeof(buffer),0,(struct sockaddr *)&emulator, sizeof(emulator));
+		    endpacket.printContents();		
+		    seqnumfile<<seqnum;
+		    seqnumfile<<"\n";
+			
+		     
+		    //Recieves EOF ack from server
+		 	if(recvfrom(emulator_to_client, data,sizeof(data),0,(struct sockaddr *)&client, &clientlen)==-1)
+			{
+				printf("Error in recv\n");
+			}
+		    packet endackpacket(0,0,0,0); 		
+		    endackpacket.deserialize((char*)data);
+		    endackpacket.printContents();
+		    ackseq=endackpacket.getSeqNum();
+		    ackfile<<ackseq;
+		    ackfile<<"\n";
+			
+			printf("EOT pakcet recived. Exiting-----------------------\n");
+		    break;
+			
+
+		  }
 		if (!file.eof() && window!=7)
 		  {
 		    file.read(fbuffer,30);
@@ -132,9 +165,20 @@ int main (int argc, char ** argv){
 			datapacket.printContents();
 			seqnumfile<<seqnum;
 			seqnumfile<<"\n";
-						
+			next_seq++;	
+			
+			
 			seqnum++;
 			window++;
+			if (next_seq==8)
+			  {
+				next_seq=0;
+			  }	
+			
+			printf("SB: %d\n",send_base);
+			printf("NS: %d\n",next_seq);
+			printf("Number of outstanding pakcets: %d\n",window);
+			printf("-------------------------------------------------------------\n");
 
 		  }
 	
@@ -152,48 +196,29 @@ int main (int argc, char ** argv){
 				     ackseq=ackpacket.getSeqNum();
 				     ackfile<<ackseq;
 				     ackfile<<"\n";
-
 					 window--;
-				   
-				     if(send_base == ackseq)
-				       {
 					 send_base++;
-					 window =0;
-				       }   
+		 			if (send_base==8)
+		 			  {
+		 				send_base=0;
+		 			  }	
+					 
+					 
+				    
+		//			 if(send_base == ackseq)
+		//		       {
+		//			 send_base++;
+		//			 window =0;
+		//		       }   
+					 
+		 			printf("SB: %d\n",send_base);
+		 			printf("NS: %d\n",next_seq);
+		 			printf("Number of outstanding pakcets: %d\n",window);
+					printf("-------------------------------------------------------------\n");
+					
 
 			  }
-		  
-			
-		if ( file.eof() && window==0)
-		  {
-			
-			cout<<window;
-		    //Makes and sends data EOF packet to server
-		    type=3;	
-		    packet endpacket(type,seqnum,0,0);
-		    endpacket.serialize((char*) buffer);
-		    sendto(client_to_emulator,buffer,sizeof(buffer),0,(struct sockaddr *)&emulator, sizeof(emulator));
-		    endpacket.printContents();
-		    seqnumfile<<seqnum;
-		    seqnumfile<<"\n";
-     
-		     
-		    //Recieves EOF ack from server
-		 	if(recvfrom(emulator_to_client, data,sizeof(data),0,(struct sockaddr *)&client, &clientlen)==-1)
-			{
-				printf("Error in recv\n");
-			}
-		    packet endackpacket(0,0,0,0); 		
-		    endackpacket.deserialize((char*)data);
-		    endackpacket.printContents();
-		    ackseq=endackpacket.getSeqNum();
-		    ackfile<<ackseq;
-		    ackfile<<"\n";
-		    break;
-			
-
-		  }
-				
+		
 	
 		}		
 	
