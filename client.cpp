@@ -104,7 +104,7 @@ int main (int argc, char ** argv){
 	#define SOCKET_ERROR -1
 	#define TIMEOUT 0
 	
-	printf("Host name: %s\n IP address: %s\n",argv[1],em);
+	printf("Host name: %s\n IP address: %s\n",argv[1],inet_ntoa(emulator.sin_addr));
 	printf("-------------------------------------------------------------\n");
 
 	while (true)
