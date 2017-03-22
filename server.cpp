@@ -65,6 +65,8 @@ int main (int argc, char ** argv){
 	int seqnum=0;
 	int acktype=0;
 	int expectedseq=0;
+	int wanted_seq;
+	printf("\n-------------------------------------------------------------\n");
 	
 	packet datapacket(type,seqnum,sizeof(data1),data1);
 
@@ -85,6 +87,7 @@ int main (int argc, char ** argv){
 		  
 		datapacket.deserialize((char*)data);
 		seqnum = datapacket.getSeqNum();
+		type=datapacket.getType();
 		arrivalfile<<seqnum;
 		arrivalfile<<"\n";
 		datapacket.printContents();
@@ -92,15 +95,16 @@ int main (int argc, char ** argv){
 		printf("sn: %d\n",seqnum);
 		  
 		if (expectedseq!=seqnum){
-			packet ackpacket(acktype,expectedseq,0,0);
+			wanted_seq=expectedseq-1;
+			packet ackpacket(acktype,wanted_seq,0,0);
 			ackpacket.serialize((char*)ack);
 			sendto(server_to_emulator,ack,sizeof(ack),0,(struct sockaddr *)&emulator, sizeof(emulator));
 			ackpacket.printContents();	
 
 			printf("-------------------------------------------------------------\n");		
 		}
-		else{
-			type=datapacket.getType();
+		else {
+			
 			if (type==3){
 
 				acktype=2;
@@ -130,6 +134,7 @@ int main (int argc, char ** argv){
 			printf("-------------------------------------------------------------\n");
 			
 			expectedseq++;
+			
 			if (expectedseq==8){
 				expectedseq=0;
 			}

@@ -78,10 +78,10 @@ int main (int argc, char ** argv){
 	int ackseq=-1;
 	int window=0;
 	int send_base = 0;
-	int location=0;
+	int location;
 	int timeout;
 	int interrupt;
-	int next_seq=0;
+	int next_seq=1;
 	
 	fd_set readfds;
 	
@@ -102,11 +102,17 @@ int main (int argc, char ** argv){
 	struct timeval tv;
 	tv.tv_sec=2;
 	tv.tv_usec=0;
-	if(setsockopt(emulator_to_client,SOL_SOCKET,SO_RCVTIMEO,(char*)&tv,sizeof(tv)))
+	
+	
+	if(setsockopt(emulator_to_client,SOL_SOCKET,SO_RCVTIMEO,(char*)&tv,sizeof(tv))<0)
 	{
 		printf("Setsockopt error\n Error Number: %d\n",errno);
+
 	}
 	
+
+
+
 	#define SOCKET_ERROR -1
 	#define TIMEOUT 0
 	
@@ -154,7 +160,7 @@ int main (int argc, char ** argv){
 			
 
 		  }
-		if (!file.eof() && window!=7)
+		if (window!=7 && !file.eof())
 		  {
 		    file.read(fbuffer,30);
 			type=1;
@@ -168,10 +174,17 @@ int main (int argc, char ** argv){
 			packet datapacket(type,seqnum,sizeof(fbuffer),fbuffer);
 			datapacket.serialize((char*) buffer);
 			sendto(client_to_emulator,buffer,sizeof(buffer),0,(struct sockaddr *)&emulator, sizeof(emulator));
-			
+			 printf("\nSending\n"); 
+			 printf("\n"); 
 			datapacket.printContents();
 			seqnumfile<<seqnum;
 			seqnumfile<<"\n";
+
+			
+			printf("SB: %d\n",send_base);
+			printf("NS: %d\n",next_seq);
+			printf("Number of outstanding packets: %d\n",window);
+			printf("-------------------------------------------------------------\n");
 			next_seq++;	
 			
 			
@@ -181,66 +194,93 @@ int main (int argc, char ** argv){
 			  {
 				next_seq=0;
 			  }	
-			
-			printf("SB: %d\n",send_base);
-			printf("NS: %d\n",next_seq);
-			printf("Number of outstanding packets: %d\n",window);
-			printf("-------------------------------------------------------------\n");
 
 		  }
 	
 	   	 	
-		if (window==7 || file.eof())
+		if ( window==7 || file.eof())
 			 {
-			   
-				 	if(recvfrom(emulator_to_client, data,sizeof(data),0,(struct sockaddr *)&client, &clientlen)<-1)
+			    printf("\nRECV\n");
+				 	if(recvfrom(emulator_to_client, data,sizeof(data),0,(struct sockaddr *)&client, &clientlen)<0)
 					{
 						printf("Error in recv\n");
-		  	//			location= (-window) * 30;
-		  	//			file.seekg(location,ios::cur);
-		  	//			seqnum=send_base;
-			//			next_seq=0;
-		 	//			window=0;
+					
+						location=-window*30;
+						file.seekg(location,ios::cur);
+						window=0;
+						next_seq=send_base+1;
+						seqnum=send_base;
+						if (next_seq==8)
+						  {
+							next_seq=0;
+						  }	
+						if (getsockopt(emulator_to_client,SOL_SOCKET,SO_RCVTIMEO,NULL,NULL)<0)
+						{					
+  							if(setsockopt(emulator_to_client,SOL_SOCKET,SO_RCVTIMEO,(char*)&tv,sizeof(tv))<0)
+  					 	   {
+  					  		printf("Setsockopt error\n Error Number: %d\n",errno);
+  					 	   }
+					    }
 					}
+					else
+					{
 				     packet ackpacket(0,0,0,0);
 				     ackpacket.deserialize((char*)data);
+					 printf("\nRECV ELSE\n"); 
+					 printf("\n"); 
 				     ackpacket.printContents();
+					  
 				     ackseq=ackpacket.getSeqNum();
 				     ackfile<<ackseq;
 					
 				     ackfile<<"\n";
 	    
-					 if(send_base == ackseq)
+					 if(ackseq >= send_base )
 					   {
-						 send_base++;
-	  					 window--;
-	  		 			if (send_base==8)
-	  		 			  {
-	  		 				send_base=0;
-	  		 			  }	
-						
-				       } 
-					   
+						   ackpacket.printContents();
+						   if(ackseq>send_base)
+						   {
+						   send_base=ackseq+1;
+						   window=window-ackseq+1;
+   						   location=window*30;
+   						   file.seekg(location,ios::cur);
+ 							if (send_base==8)
+ 							  {
+ 								  send_base=0;
+ 							  }	
+						   seqnum=send_base;
+						   }
+						   else
+						   {
+						   send_base++;
+						   window--;
+   							if (send_base==8)
+   							  {
+   								  send_base=0;
+   							  }	
+					  	   }
+	   		 			
+						printf("SB: %d\n",send_base);
+	   		 			printf("NS: %d\n",next_seq);
+	   		 			printf("Number of outstanding packets: %d\n",window);
+	   					printf("-------------------------------------------------------------\n");
+					  	
+						if (getsockopt(emulator_to_client,SOL_SOCKET,SO_RCVTIMEO,NULL,NULL)<0)
+						{					
+  							if(setsockopt(emulator_to_client,SOL_SOCKET,SO_RCVTIMEO,(char*)&tv,sizeof(tv))<0)
+  					 	   {
+  					  		printf("Setsockopt error\n Error Number: %d\n",errno);
+  					 	   }
+					     }
+				      
+					   } 		   
+					
 					  else
 						  {
-					
-			  				location= (-window) * 30;
-			  				file.seekg(location,ios::cur);
-			  				seqnum=send_base;
-							next_seq=0;
-			 				window=0;
-							  
+							  printf("Wrong ack\n"); 
 						  }  
-					 
-		 			printf("SB: %d\n",send_base);
-		 			printf("NS: %d\n",next_seq);
-		 			printf("Number of outstanding packets: %d\n",window);
-					printf("-------------------------------------------------------------\n");
-				 
-				  	if(setsockopt(emulator_to_client,SOL_SOCKET,SO_RCVTIMEO,(char*)&tv,sizeof(tv)))
-				  	{
-				  		printf("Setsockopt error\n Error Number: %d\n",errno);
-				  	}
+					  
+					  }  
 
 			  }	
 	
