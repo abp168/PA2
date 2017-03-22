@@ -136,7 +136,13 @@ int main (int argc, char ** argv){
 		memset ((char*)&data,0,sizeof(data));
 		
 		
-//EOF	-------------------------------------------EOF
+//EOF	---------------------------------------------------------------EOF
+		
+		
+		
+		
+		
+		
 		if ( send_base==next_seq)  //(file.eof() && window==0)
 		  {		
 		    //Makes and sends data EOF packet to server
@@ -169,7 +175,14 @@ int main (int argc, char ** argv){
 		  
 		  
 		  
-//Sending	-------------------------------------------Sending	  
+//Sending	--------------------------------------------------------------Sending	  
+		  
+		  
+		  
+		  
+		  
+		  
+		  
 		if (window<7 && !file.eof())
 		  {
 		  
@@ -188,10 +201,7 @@ int main (int argc, char ** argv){
 			seqnumfile<<seqnum;
 			seqnumfile<<"\n";
 			window++;
-			
-			
 
-		
 			next_seq=seqnum+1;
 			if (next_seq>7)
 			  {
@@ -215,49 +225,56 @@ int main (int argc, char ** argv){
 
 		  }
 	
-//Receiving	-------------------------------------------Receiving	
+//Receiving	---------------------------------------------------------------------Receiving
+		  
+		  
+		  
+		  	
 		     	 	
-		if  (window==7) //&& send_base!=next_seq) || (file.eof()&& window!=0))
+		if  (window==7 || file.eof()) 
 			 {
 			    printf("\nReceiving\n");
 				
-				    //Checks for timeout
-				 	if(recvfrom(emulator_to_client, data,sizeof(data),0,(struct sockaddr *)&client, &clientlen)<0)
+			    //Checks for timeout
+			 	if(recvfrom(emulator_to_client, data,sizeof(data),0,(struct sockaddr *)&client, &clientlen)<0)
+				{
+					printf("Timeout\n");
+			
+					if (file.eof())
 					{
-						printf("Timeout\n");
-				
-						if (file.eof())
-						{
-							file.clear();
-							location=-window*30;			
-							file.seekg(location,ios::end);
-						}
-				
-						location=-window*30;			
-						file.seekg(location,ios::cur); //Moves file pointer location
-						
-						window=0;
-						next_seq=send_base+1;
-						seqnum=send_base;
-					
-						if (next_seq>7)
-						  {
-							next_seq=0;
-						  }	
-					
-				   //Restes timmer
-						if (getsockopt(emulator_to_client,SOL_SOCKET,SO_RCVTIMEO,NULL,NULL)<0)
-						{					
-  							if(setsockopt(emulator_to_client,SOL_SOCKET,SO_RCVTIMEO,(char*)&tv,sizeof(tv))<0)
-  					 	   {
-  					  		printf("Setsockopt error\n Error Number: %d\n",errno);
-  					 	   }
-					    }
+						file.clear();
+						location=((-window+2)*30)+1;			
+						file.seekg(location,ios::end);
 					}
-				
-					//No timeout occured
 					else
-					{ 
+					{	
+					location=-window*30;			
+					file.seekg(location,ios::cur); //Moves file pointer location
+				    }
+					 
+					window=0;
+					next_seq=send_base+1;
+					seqnum=send_base;
+				
+					if (next_seq>7)
+					  {
+						next_seq=0;
+					  }				
+			      
+				    //Restes timmer
+				
+					if(setsockopt(emulator_to_client,SOL_SOCKET,SO_RCVTIMEO,(char*)&tv,sizeof(tv))<0)
+				 	   {
+				  		printf("Setsockopt error\n Error Number: %d\n",errno);
+				 	   }
+					  
+				    
+				}
+				
+			
+					//No timeout occured
+				else
+				{ 
 						
 				     packet ackpacket(0,0,0,0);
 				     ackpacket.deserialize((char*)data);
@@ -269,87 +286,78 @@ int main (int argc, char ** argv){
 				     ackfile<<ackseq;
 					
 				     ackfile<<"\n";
-	    			  
-					 //Checks for correct ack 
-					 if(ackseq >= send_base )//If  ack is greater than or equal to expected 
-					   {
-						   ackpacket.printContents();
-						   
-						   //Ack is greater than expected 
-						   if(ackseq>send_base)
-						   {
-						   location= (ackseq-send_base)*30;
-						   file.seekg(location,ios::cur);   //Moves file pointer location
-
-							
-							  if (ackseq>next_seq) //If next seq has wrapped back to zero
-							  {
-								  if(!file.eof()) // only decrement window if not eof
-								  {
-								  window=6-abs(ackseq-send_base);
-							      }
-							  }
-						     
-							  else// next seq has not wrapped back to zero
-							  {
-								  if(!file.eof()) // only decrement window if not eof
-								  {
-						          window=abs(ackseq-next_seq);
-							      }
-					  	 	  }
-						  	send_base=ackseq+1;
-						  
-						   }
-					     
-						   else  // Ack is equal to Send Base
-						   {
-						   send_base++;
-						   if (send_base>7)
-  							  {
-  								  send_base=0;
-  							  }	
-						 
-						   if (!file.eof()) // only decrement window if not eof
-						   {
-						   window--;
-					       }
-   						
-					  	   }
-	   		 			
-						printf("SB: %d\n",send_base);
-	   		 			printf("NS: %d\n",next_seq);
-	   		 			printf("Number of outstanding packets: %d\n",abs(window));
-	   					printf("-------------------------------------------------------------\n");
-					  	
-						//Reset Timer
-						if (getsockopt(emulator_to_client,SOL_SOCKET,SO_RCVTIMEO,NULL,NULL)<0)
-						{					
-  							if(setsockopt(emulator_to_client,SOL_SOCKET,SO_RCVTIMEO,(char*)&tv,sizeof(tv))<0)
-  					 	   {
-  					  		printf("Setsockopt error\n Error Number: %d\n",errno);
-  					 	   }
-					     }
-				      
-					   } 	
-					   
-					   // Next Seq has passed 	   
-					   else if(next_seq<send_base && ackseq<send_base &&!file.eof())///////////////
-					   {
-						   ackpacket.printContents();
-				     	   location=(window - abs(next_seq-send_base))*30;
-						   file.seekg(location,ios::cur);   //Moves file pointer location
-						 
-						   send_base=ackseq+1;
-						 
-						
-					   }
+					 ackpacket.printContents();
+				    
+						 if (ackseq==send_base)//Ack is equal to Expected Ack	
+						 {
+							 send_base++;
+							 window--;
+  						   if (send_base>7)
+    							  {
+    								  send_base=0;
+    							  }	
+	  				
+							//Reset Timer
 					
-					  else
-						  {
-							  printf("Wrong ack\n"); 
-						  }  
-					  
-					  }  
+	    					if(setsockopt(emulator_to_client,SOL_SOCKET,SO_RCVTIMEO,(char*)&tv,sizeof(tv))<0)
+	    					 	   {
+	    					  		printf("Setsockopt error\n Error Number: %d\n",errno);
+	    					 	   }
+								   
+	  					     }
+						 
+					
+						 else if(ackseq<send_base && next_seq<send_base && ackseq<next_seq && ackseq>=0) //If a packet was lost while going to server
+						 {
+							 window=(next_seq-ackseq);
+							 send_base=ackseq+1;
+  						   if (send_base>7)
+    							  {
+    								  send_base=0;
+    							  }	
+	  					
+						
+							//Reset Timer
+								  if(setsockopt(emulator_to_client,SOL_SOCKET,SO_RCVTIMEO,(char*)&tv,sizeof(tv))<0)
+	    					 	   {
+	    					  		printf("Setsockopt error\n Error Number: %d\n",errno);
+	    					 	   }
+								   
+	  					     }
+					     
+					 
+						 else if (next_seq>send_base && ackseq>send_base)//If a Ack was lost but accumaltive ack came
+						 {
+							window=ackseq-send_base;
+							send_base=ackseq+1;	
+ 						   if (send_base>7)
+   							  {
+   								  send_base=0;
+   							  }		
+	 					
+						
+							//Reset Timer
+	   							if(setsockopt(emulator_to_client,SOL_SOCKET,SO_RCVTIMEO,(char*)&tv,sizeof(tv))<0)
+	   					 	   {
+	   					  		printf("Setsockopt error\n Error Number: %d\n",errno);
+	   					 	   }
+							   
+	 					     			
+						 }
+						 else
+						 {
+							 printf("\n Wrong Ack \n"); 
+						 }
+ 					
+						printf("SB: %d\n",send_base);
+ 	   		 			printf("NS: %d\n",next_seq);
+ 	   		 			printf("Number of outstanding packets: %d\n",abs(window));
+ 	   					printf("-------------------------------------------------------------\n");
+					  	
+
+					
+					}
+					
 
 			  }	
 	
