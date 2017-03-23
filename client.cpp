@@ -1,3 +1,15 @@
+/*
+Authors:
+Name:Benton Estes
+NetID:bpe23
+&&
+Name:Aaron Powell
+NetID:abp168
+
+*/
+
+
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -116,7 +128,7 @@ int main (int argc, char ** argv){
 
 	#define SOCKET_ERROR -1
 	#define TIMEOUT 0
-	
+	printf("\n-------------------------------------------------------------\n");
 	printf("Host name: %s\n IP address: %s\n",argv[1],inet_ntoa(emulator.sin_addr));
 	printf("-------------------------------------------------------------\n");
 

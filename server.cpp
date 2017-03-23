@@ -1,3 +1,15 @@
+/*
+Authors:
+Name:Benton Estes
+NetID:bpe23
+&&
+Name:Aaron Powell
+NetID:abp168
+
+*/
+
+
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
