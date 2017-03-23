@@ -62,7 +62,7 @@ int main (int argc, char ** argv){
 	
 	socklen_t emulatorlen=sizeof(emulator);
 	socklen_t serverlen = sizeof(server);
-	
+	//Open txt files
 	ofstream outfile;
 	outfile.open("output.txt");	
 	
@@ -90,9 +90,8 @@ int main (int argc, char ** argv){
 		memset ((char*)&ack,0,sizeof(ack));
 
 		
-		// Recieve packet from client and deserialize
-		   
-			if( recvfrom(emulator_to_server,data,sizeof(data),0,(struct sockaddr *)&server, &serverlen) == -1)
+		// Recieve packet from client and deserialize		   
+		if( recvfrom(emulator_to_server,data,sizeof(data),0,(struct sockaddr *)&server, &serverlen) == -1)
 		  {
 		    printf("Error in receiving\n");
 		  }
@@ -105,7 +104,8 @@ int main (int argc, char ** argv){
 		datapacket.printContents();
 		printf("\nExpecting Rn: %d\n",expectedseq);
 		printf("sn: %d\n",seqnum);
-		  
+		 
+		//Checks recieved packet to see if correct sequence number
 		if (expectedseq!=seqnum){
 			wanted_seq=expectedseq-1;
 			packet ackpacket(acktype,wanted_seq,0,0);
@@ -115,8 +115,9 @@ int main (int argc, char ** argv){
 
 			printf("-------------------------------------------------------------\n");		
 		}
+		//Correct Packet sequence number
 		else {
-			
+			// Checks if the EOF packet has been sent
 			if (type==3){
 
 				acktype=2;
@@ -131,8 +132,8 @@ int main (int argc, char ** argv){
 				printf("-------------------------------------------------------------\n");
 				break;		
 			}	
-	
-			outfile<<datapacket.getData();
+			//The EOF packet has not been sent 
+			outfile<<datapacket.getData();  //add packet data to outfile
 		
 			//makes ack packet to send to client
 			packet ackpacket(acktype,seqnum,0,0);
@@ -150,7 +151,7 @@ int main (int argc, char ** argv){
 		}
 	}
 
-	
+	//Close all and shut down
 	outfile.close();
 	arrivalfile.close();
 	close(emulator_to_server);

@@ -98,6 +98,7 @@ int main (int argc, char ** argv){
 	
 	fd_set readfds;
 	
+	//Open txt files
 	ifstream file;
 	file.open(argv[4]);
 	
@@ -116,7 +117,7 @@ int main (int argc, char ** argv){
 	tv.tv_sec=2;
 	tv.tv_usec=0;
 	
-	
+	// Starts timmer of 2 sec for socket
 	if(setsockopt(emulator_to_client,SOL_SOCKET,SO_RCVTIMEO,(char*)&tv,sizeof(tv))<0)
 	{
 		printf("Setsockopt error\n Error Number: %d\n",errno);
@@ -144,7 +145,7 @@ int main (int argc, char ** argv){
 		
 //EOF	---------------------------------------------------------------EOF
 
-		
+		//Sends EOF packet and Recieves Server EOF ack packet
 		if ( send_base==next_seq && outstanding_pack==0)  
 		  {		
 		    //Makes and sends data EOF packet to server
@@ -158,8 +159,7 @@ int main (int argc, char ** argv){
 		    seqnumfile<<"\n";
 			
 		     
-		    //Recieves EOF ack from server
-			
+		    //Recieves EOF ack from server			
 		 	if(recvfrom(emulator_to_client, data,sizeof(data),0,(struct sockaddr *)&client, &clientlen)<0)
 			{
 				printf("Error in recv\n");
@@ -179,12 +179,7 @@ int main (int argc, char ** argv){
 		  
 //Sending	--------------------------------------------------------------Sending	  
 		  
-		  
-		  
-		  
-		  
-		  
-		  
+		 //Sends packets to server while the file is not empty and there are not 7 outstanding packets 	  
 		if (outstanding_pack<7 && !file.eof())
 		  {
 		  
@@ -202,7 +197,7 @@ int main (int argc, char ** argv){
 			seqnumfile<<seqnum;
 			seqnumfile<<"\n";
 			
-
+			//Increments Next sequence and outstanding packet
 			next_seq=(seqnum+1)%8;
 		 	outstanding_pack=(outstanding_pack+1)%8;
 			  	
@@ -212,21 +207,16 @@ int main (int argc, char ** argv){
 			printf("NS: %d\n",next_seq);
 			printf("Number of outstanding packets: %d\n",outstanding_pack);
 			printf("-------------------------------------------------------------\n");
-			
+			// Increment 
 			seqnum=(seqnum+1)%8;
-		
-
 
 		 } 
 
 		  
 	
 //Receiving	---------------------------------------------------------------------Receiving
-		  
-		  
-		  
-		  	
-		     	 	
+
+	    // Recieves ack packets from server 	 	
 		if  (outstanding_pack==7 || file.eof()) 
 			 {
 			   
@@ -265,7 +255,7 @@ int main (int argc, char ** argv){
 			   	}
 				
 			
-					//No timeout occured
+				//No timeout occured
 				else
 				{ 
 						
@@ -278,17 +268,19 @@ int main (int argc, char ** argv){
 					
 				     ackfile<<"\n";
 					 ackpacket.printContents();
-	 
+				//Checks to see if ack sequence number is within window
 						 if (ackseq>= send_base || (ackseq<(send_base+window)%8 && ackseq>=0))
 						{ 
 							
-					
+							//increments Send Base to ack sequence number plus 1
 							send_base=(ackseq+1)%8;	
+							//check to see if ack is less than next sequence
 							if(next_seq>ackseq)
 							{
 								outstanding_pack=(next_seq-send_base)%8;
 								
 							}
+							//check to see if ack is greater than next sequence
 							else if (next_seq<ackseq)
 							{
 								outstanding_pack=(window -(abs(next_seq - ackseq)))%8;
@@ -325,7 +317,7 @@ int main (int argc, char ** argv){
 				
 	
 	
-
+    //Close all and shut down
 	file.close();
 	ackfile.close();
 	seqnumfile.close();
