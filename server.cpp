@@ -133,11 +133,8 @@ int main (int argc, char ** argv){
 
 			printf("-------------------------------------------------------------\n");
 			
-			expectedseq++;
-			
-			if (expectedseq==8){
-				expectedseq=0;
-			}
+			expectedseq=(expectedseq+1)%8;
+
 		}
 	}
 
